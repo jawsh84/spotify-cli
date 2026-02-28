@@ -108,4 +108,4 @@ For Claude agent usage, prefix commands with the required env vars:
 SPOTIFY_CLIENT_ID="..." SPOTIFY_CLIENT_SECRET="..." SPOTIFY_REDIRECT_URI="..." sp <command>
 ```
 
-Use `sp agent` for a condensed command reference designed for LLM consumption.
+Use `sp agent` for a detailed command reference with full syntax, return shapes, and usage tips — designed for LLM consumption.
