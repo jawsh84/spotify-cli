@@ -1,0 +1,15 @@
+[project]
+name = "spotify-cli"
+version = "0.1.0"
+description = "Spotify CLI for Claude agent"
+requires-python = ">=3.12"
+dependencies = [
+    "spotipy==2.24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+sp = "spotify_cli.main:main"
