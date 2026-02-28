@@ -63,6 +63,187 @@ EXAMPLES
   sp info spotify:album:4LH4d3cOWNNsVw41Gqt2kv
 """
 
+AGENT_TEXT = """\
+sp — Spotify CLI — Agent Reference
+
+This document describes every command available in the `sp` CLI.
+All commands accept an optional `--json` flag for structured JSON output.
+Without `--json`, output is human-readable plain text.
+
+URI FORMAT
+  Spotify URIs follow the pattern: spotify:<type>:<id>
+  Types: track, album, artist, playlist
+  Example: spotify:track:4iV5W9uYEdYUVa79Axb7Rh
+  The <id> portion is a 22-character base62 string. Many commands that accept
+  an ID also accept a full URI — use whichever you have on hand.
+
+────────────────────────────────────────────────────────────────────
+
+PLAYBACK
+
+  sp now
+    Returns the currently playing track.
+    Plain: "Playing: Name -- Artist (ID: xxx)" or "Nothing playing."
+    JSON: {name, id, artist, is_playing, duration_ms} or null
+
+  sp play [uri]
+    Resume playback (no arg) or play a specific URI.
+    - Track URI (spotify:track:...): plays that single track
+    - Album/playlist/artist URI: plays that context
+    Plain: "Playing." or "Resumed."
+    No JSON output — action command.
+
+  sp pause
+    Pause playback.
+    Plain: "Paused."
+
+  sp skip [n]
+    Skip forward n tracks (default 1).
+    Plain: "Skipped N track(s)."
+
+  sp prev
+    Go to previous track.
+    Plain: "Previous track."
+
+  sp volume <0-100>
+    Set volume to the given percentage (integer).
+    Plain: "Volume: N%"
+
+  sp devices
+    List available Spotify Connect devices.
+    Plain: one line per device with name, type, volume, and * for active.
+    JSON: [{name, id, type, is_active, volume_percent}, ...]
+
+────────────────────────────────────────────────────────────────────
+
+QUEUE
+
+  sp queue
+    Show the current playback queue.
+    Plain: currently playing track + numbered queue list.
+    JSON: {currently_playing: {track} | null, queue: [{track}, ...]}
+
+  sp queue add <uri>
+    Add a track URI to the end of the queue.
+    Plain: "Added to queue."
+
+────────────────────────────────────────────────────────────────────
+
+SEARCH
+
+  sp search <query> [--type TYPE] [--limit N]
+    Search Spotify. Query is a free-text string.
+    --type: track (default), album, artist, playlist
+            Combine with commas: --type track,album
+    --limit: max results per type (default 10)
+    Plain: grouped sections (TRACKS, ALBUMS, etc.) with numbered items.
+    JSON: {tracks: [{track}, ...], albums: [{album}, ...], ...}
+          Only keys for requested types are present.
+
+────────────────────────────────────────────────────────────────────
+
+INFO
+
+  sp info <uri>
+    Get detailed information about any Spotify item.
+    URI must be a full spotify:type:id string.
+
+    Track: JSON {name, id, artist, album, track_number, duration_ms}
+    Album: JSON {name, id, artist, release_date, total_tracks, tracks: [...]}
+    Artist: JSON {name, id, genres, followers, popularity,
+                  top_tracks: [...], albums: [...]}
+    Playlist: JSON {name, id, owner, total_tracks, description, tracks: [...]}
+
+────────────────────────────────────────────────────────────────────
+
+PLAYLISTS
+
+  sp playlists [--limit N]
+    List the user's playlists (default limit 50).
+    JSON: [{name, id, owner, total_tracks, user_is_owner}, ...]
+
+  sp playlist <id>
+    Show tracks in a playlist.
+    JSON: [{name, id, artist, duration_ms}, ...]
+
+  sp playlist <id> add <ids>
+    Add tracks to a playlist. IDs are comma-separated track IDs.
+    Plain: "Added N track(s)."
+
+  sp playlist <id> remove <ids>
+    Remove tracks from a playlist. IDs are comma-separated.
+    Plain: "Removed N track(s)."
+
+  sp playlist create "<name>" [--private] [--desc "..."]
+    Create a new playlist. Name should be quoted if it has spaces.
+    --private: make it private (default is public)
+    --desc: set a description
+    JSON: {name, id, owner, total_tracks, description}
+
+────────────────────────────────────────────────────────────────────
+
+LIBRARY
+
+  sp saved tracks [--limit N]
+    User's liked/saved tracks (default limit 20).
+    JSON: [{name, id, artist, duration_ms}, ...]
+
+  sp saved albums [--limit N]
+    User's saved albums (default limit 20).
+    JSON: [{name, id, artist, release_date, total_tracks}, ...]
+
+  sp save track <ids>
+    Like/save tracks. Comma-separated IDs.
+    Plain: "Saved N track(s)."
+
+  sp save album <ids>
+    Save albums. Comma-separated IDs.
+    Plain: "Saved N album(s)."
+
+  sp unsave track <ids>
+    Remove tracks from library.
+    Plain: "Removed N track(s)."
+
+  sp unsave album <ids>
+    Remove albums from library.
+    Plain: "Removed N album(s)."
+
+────────────────────────────────────────────────────────────────────
+
+LISTENING HISTORY
+
+  sp recent [--limit N]
+    Recently played tracks (default limit 20).
+    JSON: [{name, id, artist, duration_ms}, ...]
+
+  sp top tracks [--range short|medium|long] [--limit N]
+    User's top tracks. Range maps to Spotify time ranges:
+      short  = ~4 weeks
+      medium = ~6 months (default)
+      long   = several years
+    JSON: [{name, id, artist, duration_ms}, ...]
+
+  sp top artists [--range short|medium|long] [--limit N]
+    User's top artists. Same range options as above.
+    JSON: [{name, id, genres, followers}, ...]
+
+────────────────────────────────────────────────────────────────────
+
+AGENT TIPS
+
+  - Use --json on read commands to get structured data you can parse.
+  - Action commands (play, pause, skip, prev, volume, queue add, save,
+    unsave, playlist add/remove) print confirmation text only — no JSON
+    output. Check exit code 0 for success.
+  - To build a URI from an ID: f"spotify:track:{id}"
+  - Search returns IDs you can pass directly to play, queue add, save, etc.
+  - For playlist operations, use the playlist ID (not URI).
+  - The "artist" field is a string for single artists, or a list of
+    strings (plain) / list of {name, id} dicts (JSON) for multiple artists.
+  - Limit defaults vary: search=10, saved/recent/top=20, playlists=50.
+  - Exit code 1 with stderr message on errors.
+"""
+
 TIME_RANGE_MAP = {"short": "short_term", "medium": "medium_term", "long": "long_term"}
 
 
@@ -73,8 +254,12 @@ def _parse_ids(s: str) -> list:
 def main():
     args = sys.argv[1:]
 
-    if not args or args[0] in ("help", "--help", "-h", "agent"):
+    if not args or args[0] in ("help", "--help", "-h"):
         print(HELP_TEXT)
+        return
+
+    if args[0] == "agent":
+        print(AGENT_TEXT)
         return
 
     use_json = "--json" in args
