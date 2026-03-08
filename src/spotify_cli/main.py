@@ -33,9 +33,10 @@ INFO
 
 PLAYLISTS
   sp playlists [--limit N]       List user's playlists
-  sp playlist <id>               Show playlist tracks
+  sp playlist <id> [--limit N] [--offset N]  Show playlist tracks
   sp playlist <id> add <ids>     Add tracks (comma-separated IDs)
   sp playlist <id> remove <ids>  Remove tracks (comma-separated IDs)
+  sp playlist <id> delete        Unfollow/delete a playlist
   sp playlist create "<name>" [--private] [--desc "..."]
 
 LIBRARY
@@ -162,9 +163,11 @@ PLAYLISTS
     List the user's playlists (default limit 50).
     JSON: [{name, id, owner, total_tracks, user_is_owner}, ...]
 
-  sp playlist <id>
-    Show tracks in a playlist.
-    JSON: [{name, id, artist, duration_ms}, ...]
+  sp playlist <id> [--limit N] [--offset N]
+    Show tracks in a playlist. Fetches all tracks by default (paginates
+    automatically). Use --limit to cap results and --offset to start from
+    a specific position.
+    JSON: {tracks: [{name, id, artist, duration_ms}, ...], total: N, offset: N}
 
   sp playlist <id> add <ids>
     Add tracks to a playlist. IDs are comma-separated track IDs.
@@ -173,6 +176,11 @@ PLAYLISTS
   sp playlist <id> remove <ids>
     Remove tracks from a playlist. IDs are comma-separated.
     Plain: "Removed N track(s)."
+
+  sp playlist <id> delete
+    Unfollow/delete a playlist. For owned playlists, this effectively
+    deletes them (Spotify has no true delete — unfollow is the mechanism).
+    Plain: "Deleted playlist."
 
   sp playlist create "<name>" [--private] [--desc "..."]
     Create a new playlist. Name should be quoted if it has spaces.
@@ -305,8 +313,9 @@ def _dispatch(sp, cmd: str, args: list, use_json: bool):
                 print(formatters.format_now_playing(result))
 
         case "play":
+            device_id = _get_flag(args, "--device")
             uri = args[0] if args else None
-            client.play(sp, uri)
+            client.play(sp, uri, device_id=device_id)
             print("Playing." if uri else "Resumed.")
 
         case "pause":
@@ -414,7 +423,10 @@ def _dispatch(sp, cmd: str, args: list, use_json: bool):
                 # Redirect: they typed "sp playlist create ..."
                 _dispatch(sp, "playlist", ["create"] + args[2:], use_json)
                 return
-            if len(args) >= 3 and args[1] == "add":
+            if len(args) >= 2 and args[1] == "delete":
+                client.playlist_delete(sp, pid)
+                print("Deleted playlist.")
+            elif len(args) >= 3 and args[1] == "add":
                 ids = _parse_ids(args[2])
                 client.playlist_add(sp, pid, ids)
                 print(f"Added {len(ids)} track(s).")
@@ -440,11 +452,18 @@ def _dispatch(sp, cmd: str, args: list, use_json: bool):
                 else:
                     print(f"Created: {formatters.format_playlist(result)}")
             else:
-                result = client.playlist_tracks(sp, pid)
+                sub_args = list(args[1:]) if len(args) > 1 else []
+                limit = int(_get_flag(sub_args, "--limit", "0"))
+                offset = int(_get_flag(sub_args, "--offset", "0"))
+                result = client.playlist_tracks(sp, pid, limit=limit, offset=offset)
                 if use_json:
                     print(formatters.as_json(result))
                 else:
-                    print(formatters.format_track_list(result))
+                    tracks = result["tracks"]
+                    total = result["total"]
+                    print(formatters.format_track_list(tracks, start=offset + 1))
+                    if total > len(tracks) + offset:
+                        print(f"\nShowing {offset + 1}-{offset + len(tracks)} of {total} tracks.")
 
         # --- Library ---
         case "saved":

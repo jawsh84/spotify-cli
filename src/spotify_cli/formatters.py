@@ -37,11 +37,11 @@ def format_now_playing(t: Optional[dict]) -> str:
     return f"{status}: {t['name']} -- {_artist_str(t)} (ID: {t['id']})"
 
 
-def format_track_list(tracks: list, numbered: bool = True) -> str:
+def format_track_list(tracks: list, numbered: bool = True, start: int = 1) -> str:
     if not tracks:
         return "No tracks."
     lines = []
-    for i, t in enumerate(tracks, 1):
+    for i, t in enumerate(tracks, start):
         line = format_track(t)
         if numbered:
             line = f"{i:>3}. {line}"

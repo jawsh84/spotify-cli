@@ -49,14 +49,15 @@ def _get_username(sp: spotipy.Spotify) -> str:
 
 
 def _get_device_id(sp: spotipy.Spotify) -> Optional[str]:
-    """Get active device, or first available."""
+    """Get device from current playback state, falling back to devices list."""
+    playback = sp.current_playback()
+    if playback and playback.get("device"):
+        return playback["device"]["id"]
     devices = sp.devices().get("devices", [])
-    if not devices:
-        return None
     for d in devices:
         if d.get("is_active"):
             return d["id"]
-    return devices[0]["id"]
+    return None
 
 
 # --- Playback ---
@@ -70,8 +71,7 @@ def now_playing(sp: spotipy.Spotify) -> Optional[dict]:
     return track
 
 
-def play(sp: spotipy.Spotify, uri: Optional[str] = None):
-    device_id = _get_device_id(sp)
+def play(sp: spotipy.Spotify, uri: Optional[str] = None, device_id: Optional[str] = None):
     if not uri:
         sp.start_playback(device_id=device_id)
         return
@@ -158,9 +158,36 @@ def playlists(sp: spotipy.Spotify, limit: int = 50) -> list:
     return [utils.parse_playlist(p, username) for p in results["items"]]
 
 
-def playlist_tracks(sp: spotipy.Spotify, playlist_id: str, limit: int = 100) -> list:
-    results = sp.playlist_items(playlist_id, limit=limit)
-    return [utils.parse_track(item["track"]) for item in results["items"] if item.get("track")]
+def playlist_tracks(sp: spotipy.Spotify, playlist_id: str, limit: int = 0, offset: int = 0) -> dict:
+    """Fetch playlist tracks with pagination. limit=0 means fetch all."""
+    tracks = []
+    batch_size = 100
+    current_offset = offset
+
+    if limit > 0:
+        # Fetch exactly `limit` tracks starting at `offset`
+        while len(tracks) < limit:
+            fetch = min(batch_size, limit - len(tracks))
+            results = sp.playlist_items(playlist_id, limit=fetch, offset=current_offset)
+            items = [utils.parse_track(item["track"]) for item in results["items"] if item.get("track")]
+            tracks.extend(items)
+            if not results.get("next"):
+                break
+            current_offset += fetch
+        total = results.get("total", len(tracks))
+    else:
+        # Fetch all tracks
+        results = sp.playlist_items(playlist_id, limit=batch_size, offset=current_offset)
+        total = results.get("total", 0)
+        items = [utils.parse_track(item["track"]) for item in results["items"] if item.get("track")]
+        tracks.extend(items)
+        while results.get("next"):
+            current_offset += batch_size
+            results = sp.playlist_items(playlist_id, limit=batch_size, offset=current_offset)
+            items = [utils.parse_track(item["track"]) for item in results["items"] if item.get("track")]
+            tracks.extend(items)
+
+    return {"tracks": tracks, "total": total, "offset": offset}
 
 
 def playlist_add(sp: spotipy.Spotify, playlist_id: str, track_ids: List[str]):
@@ -169,6 +196,10 @@ def playlist_add(sp: spotipy.Spotify, playlist_id: str, track_ids: List[str]):
 
 def playlist_remove(sp: spotipy.Spotify, playlist_id: str, track_ids: List[str]):
     sp.playlist_remove_all_occurrences_of_items(playlist_id, track_ids)
+
+
+def playlist_delete(sp: spotipy.Spotify, playlist_id: str):
+    sp.current_user_unfollow_playlist(playlist_id)
 
 
 def playlist_create(sp: spotipy.Spotify, name: str, public: bool = True, description: str = "") -> dict:
